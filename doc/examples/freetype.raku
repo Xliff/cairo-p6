@@ -1,8 +1,8 @@
 # This example requires the Font::FreeType module
 use Cairo;
-use Font::FreeType:ver<0.1.9+>;
+use Font::FreeType:ver<0.3.0+>;
 use Font::FreeType::Face;
-use Font::FreeType::Native;
+use Font::FreeType::Raw;
 
 my Font::FreeType $freetype .= new;
 
@@ -12,9 +12,9 @@ sub MAIN(
 ) {
     my Font::FreeType::Face $face = $freetype.face($font-file);
     # get the underlying FreeType Face native C-struct
-    my FT_Face $face-struct = $face.native;
+    my FT_Face $ft-face = $face.raw;
     my Cairo::Font $font .= create(
-        $face-struct, :free-type,
+        $ft-face, :free-type,
     );
 
     freetype-demo($font, $png);
