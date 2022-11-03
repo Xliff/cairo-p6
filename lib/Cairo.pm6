@@ -1,4 +1,4 @@
-unit module Cairo:ver<0.3.0>;
+unit module Cairo:ver<0.3.3>;
 
 our $cairolib;
 BEGIN {
@@ -376,6 +376,18 @@ our class cairo_font_face_t is repr('CPointer') {
         {*}
 }
 
+our class cairo_scaled_font_t is repr('CPointer') {
+
+   method reference
+        is native($cairolib)
+        is symbol('cairo_scaled_font_reference')
+        {*}
+   method destroy
+        is native($cairolib)
+        is symbol('cairo_scaled_font_destroy')
+        {*}
+}
+
 our class cairo_glyph_t is repr('CStruct') {
     has ulong $.index is rw;
     has num64 $.x     is rw ;
@@ -723,6 +735,16 @@ our class cairo_t is repr('CPointer') {
         is symbol('cairo_get_line_width')
         {*}
 
+    method set_miter_limit(num64 $width)
+        is native($cairolib)
+        is symbol('cairo_set_miter_limit')
+        {*}
+    method get_miter_limit
+        returns num64
+        is native($cairolib)
+        is symbol('cairo_get_miter_limit')
+        {*}
+
     method set_dash(CArray[num64] $dashes, int32 $len, num64 $offset)
         is native($cairolib)
         is symbol('cairo_set_dash')
@@ -866,6 +888,17 @@ our class cairo_t is repr('CPointer') {
         is symbol('cairo_set_font_size')
         {*}
 
+    method set_scaled_font(cairo_scaled_font_t $font)
+        is native($cairolib)
+        is symbol('cairo_set_scaled_font')
+        {*}
+
+    method get_scaled_font
+        returns cairo_scaled_font_t
+        is native($cairolib)
+        is symbol('cairo_get_scaled_font')
+        {*}
+
     method show_text(Str $utf8)
         is native($cairolib)
         is symbol('cairo_show_text')
@@ -989,6 +1022,8 @@ our class Image   { ... }
 our class Pattern { ... }
 our class Context { ... }
 our class Font    { ... }
+our class FontOptions { ... }
+our class ScaledFont  { ... }
 
 # Backwards compatibility
 our enum cairo_format_t is export (
@@ -1530,6 +1565,10 @@ class Context {
         tag_end
     >;
 
+    method Cairo::cairo_t {
+      $.context
+    }
+
     multi method new(cairo_t $context) {
         self.bless(:$context);
     }
@@ -1725,6 +1764,15 @@ class Context {
         $!context.set_font_size($size);
     }
 
+    method set_scaled_font(Cairo::ScaledFont $font) {
+        $!context.set_scaled_font($font.font);
+    }
+    method get_scaled_font {
+        my $font =  $!context.get_scaled_font;
+        $font.reference;
+        Cairo::Face.new: :$font;
+    }
+
     multi method show_text(str $text) {
         $!context.show_text($text);
     }
@@ -1811,6 +1859,12 @@ class Context {
         Proxy.new:
             FETCH => { $!context.get_line_width},
             STORE => -> \c, \value { $!context.set_line_width(value.Num) }
+    }
+
+    method miter_limit() is rw {
+        Proxy.new:
+            FETCH => { $!context.get_miter_limit},
+            STORE => -> \c, \value { $!context.set_miter_limit(value.Num) }
     }
 
     method tolerance() is rw {
@@ -1951,6 +2005,29 @@ class Font {
       }
 }
 
+class ScaledFont {
+    sub cairo_scaled_font_create(cairo_font_face_t, cairo_matrix_t, cairo_matrix_t, cairo_font_options_t)
+        returns cairo_scaled_font_t
+        is native($cairolib)
+        {*}
+
+    has cairo_scaled_font_t $.font handles <destroy>;
+    has Matrix:D $.ctm is required;
+    has Matrix:D $.scale is required;
+    multi method create(Font:D $font, Matrix:D $scale, Matrix:D $ctm, Cairo::FontOptions $opts = Cairo::FontOptions.new) {
+        return self.new(
+            :$ctm,
+            :$scale,
+            font => cairo_scaled_font_create(
+                $font.face,
+                $scale.matrix,
+                $ctm.matrix,
+                $opts.font_options,
+            )
+        )
+    }
+}
+
 class FontOptions {
 
   sub font_options_create()
@@ -2028,4 +2105,3 @@ class Glyphs {
         $!glyphs.free;
     }
 }
-
