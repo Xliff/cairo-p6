@@ -1,4 +1,4 @@
-unit module Cairo:ver<0.3.3>;
+unit module Cairo:ver<0.3.4>;
 
 our $cairolib;
 BEGIN {
@@ -133,6 +133,15 @@ our enum cairo_pdf_metadata_t is export <
     CAIRO_PDF_METADATA_CREATE_DATE
     CAIRO_PDF_METADATA_MOD_DATE
 >;
+
+sub cairo_version_string
+        returns Str
+        is native($cairolib)
+        {*}
+
+our sub version {
+    Version.new: cairo_version_string()
+}
 
 my class StreamClosure is repr('CStruct') is rw {
 
@@ -472,6 +481,24 @@ our class cairo_pattern_t is repr('CPointer') {
         is native($cairolib)
         is symbol('cairo_pattern_get_matrix')
         {*}
+
+    method get_color_stop_count(int32 $count is rw)
+      returns int32
+      is native($cairolib)
+      is symbol('cairo_pattern_get_color_stop_count')
+      {*}
+
+    method get_color_stop_rgba(
+      int32 $index,
+      num64 $o      is rw,
+      num64 $r      is rw,
+      num64 $g      is rw,
+      num64 $b      is rw
+    )
+      returns int32
+      is native($cairolib)
+      is symbol('cairo_pattern_get_color_stop_rgba')
+      {*}
 
     method add_color_stop_rgb(num64 $offset, num64 $r, num64 $g, num64 $b)
         returns int32
@@ -1079,7 +1106,7 @@ our enum cairo_operator_t is export <
   CAIRO_OPERATOR_HSL_LUMINOSITY
 >;
 
-our enum Operator is export <
+our enum CairoOperator is export <
     OPERATOR_CLEAR
 
     OPERATOR_SOURCE
@@ -1457,6 +1484,8 @@ class Pattern {
 
     has cairo_pattern_t $.pattern handles <destroy>;
 
+    method Cairo::cairo_pattern_t { $!pattern }
+
     multi method new(cairo_pattern_t $pattern) {
         self.bless(:$pattern)
     }
@@ -1515,13 +1544,58 @@ class Pattern::Surface is Pattern {
 
 class Pattern::Gradient is Pattern {
 
-    method add_color_stop_rgb(Num(Cool) $offset, Num(Cool) $r, Num(Cool) $g, Num(Cool) $b) {
-        $.pattern.add_color_stop_rgb($offset, $r, $g, $b);
+    method add_color_stop_rgb(Num(Cool) $offset, Num(Cool) $red, Num(Cool) $green, Num(Cool) $blue) {
+        my num64 ($o, $r, $g, $b) = ($offset, $red, $green, $blue);
+        say "o = $offset / r = $r / g = $g / b = $b";
+        $.pattern.add_color_stop_rgb($o, $r, $g, $b);
     }
 
     method add_color_stop_rgba(Num(Cool) $offset, Num(Cool) $r, Num(Cool) $g, Num(Cool) $b, Num(Cool) $a) {
+        say "o = $offset / r = $r / g = $g / b = $b / a = $a";
         $.pattern.add_color_stop_rgba($offset, $r, $g, $b, $a);
     }
+
+    multi method get_color_stop_count {
+      samewith($);
+    }
+    multi method get_color_stop_count ($count is rw) {
+      my int32 $c = 0;
+      $.pattern.get_color_stop_count($c);
+      $count = $c;
+    }
+    method elems {
+      self.get_color_stop_count;
+    }
+
+    multi method get_color_stop_rgba (Int() $index) {
+      samewith($index, $, $, $, $);
+    }
+    multi method get_color_stop_rgba (
+      Int() $index,
+      $offset       is rw,
+      $red          is rw,
+      $green        is rw,
+      $blue         is rw
+    ) {
+      my int32  $i              = $index;
+      my num64 ($o, $r, $g, $b) = 0e0 xx 4;
+
+      $.pattern.get_color_stop_rgba($i, $o, $r, $g, $b);
+      ($offset, $red, $green, $blue) = ($o, $r, $g, $b);
+    }
+
+    method gist {
+      my @stops;
+
+      for ^self.get_color_stop_count {
+        my @s = self.get_color_stop_rgba($_);
+        say "Stop #{ $_ } = { @s.join(', ') }";
+        @stops.push: @s;
+      }
+
+      say "Cario::Pattern::Gradient.new(stops => { @stops.join(', ') }) <not legal raku>";
+    }
+
 
 }
 
@@ -1845,7 +1919,7 @@ class Context {
 
     method operator() is rw {
         Proxy.new:
-            FETCH => { Operator($!context.get_operator) },
+            FETCH => { CairoOperator($!context.get_operator) },
             STORE => -> \c, \value { $!context.set_operator(value.Int) }
     }
 
