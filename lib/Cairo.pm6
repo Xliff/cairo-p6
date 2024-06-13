@@ -1,4 +1,4 @@
-unit module Cairo:ver<0.3.4>;
+unit module Cairo:ver<0.3.6>;
 
 our $cairolib;
 BEGIN {
@@ -282,6 +282,13 @@ our class cairo_surface_t is repr('CPointer') {
 
 class cairo_pdf_surface_t is cairo_surface_t is repr('CPointer') {
 
+    our sub create(str $filename, num64 $width, num64 $height)
+        returns cairo_pdf_surface_t
+        is native($cairolib)
+        is symbol('cairo_pdf_surface_create')
+        {*}
+
+
     method add_outline(int32 $parent-id, Str $name, Str $link-attrs, int32 $flags --> int32)
         is native($cairolib)
         is symbol('cairo_pdf_surface_add_outline')
@@ -291,6 +298,22 @@ class cairo_pdf_surface_t is cairo_surface_t is repr('CPointer') {
         is native($cairolib)
         is symbol('cairo_pdf_surface_set_metadata')
         {*}
+
+    method new(Str:D :$filename!, Num:D() :$width!, Num:D() :$height! --> cairo_pdf_surface_t:D) {
+        create($filename, $width, $height);
+    }
+}
+
+class cairo_svg_surface_t is cairo_surface_t is repr('CPointer') {
+    our sub create(str $filename, num64 $width, num64 $height)
+        returns cairo_svg_surface_t
+        is native($cairolib)
+        is symbol('cairo_svg_surface_create')
+        {*}
+
+    method new(Str:D :$filename!, Num:D() :$width!, Num:D() :$height! --> cairo_svg_surface_t) {
+        create($filename, $width, $height);
+    }
 }
 
 our class cairo_rectangle_t is repr('CPointer') { }
@@ -1232,9 +1255,10 @@ class Matrix {
 
 class Surface {
     has cairo_surface_t $.surface handles <reference destroy flush finish show_page status>;
+    method set-surface($!surface) {}
 
     method write_png(Str $filename) {
-        my $result = CairoStatus( $!surface.write_to_png($filename) );
+        my $result = CairoStatus( $.surface.write_to_png($filename) );
         fail $result if $result != STATUS_SUCCESS;
         $result;
     }
@@ -1243,7 +1267,7 @@ class Surface {
          my $buf = CArray[uint8].new;
          $buf[$size] = 0;
          my $closure = StreamClosure.new: :$buf, :buf-len(0), :n-read(0), :$size;
-         $!surface.write_to_png_stream(&StreamClosure::write, $closure);
+         $.surface.write_to_png_stream(&StreamClosure::write, $closure);
          return Blob[uint8].new: $buf[0 ..^ $closure.buf-len];
     }
 
@@ -1257,55 +1281,39 @@ class Surface {
 }
 
 class Surface::PDF is Surface {
-    sub cairo_pdf_surface_create(str $filename, num64 $width, num64 $height)
-        returns cairo_pdf_surface_t
-        is native($cairolib)
-        {*}
+    has Num:D() $.width is required;
+    has Num:D() $.height is required;
 
-    has Num $.width;
-    has Num $.height;
-
-    multi method create(str $filename, num64 $width, num64 $height) {
-        return self.new(
-            surface => cairo_pdf_surface_create($filename, $width, $height),
-            :$width, :$height,
-            )
+    submethod BUILD(Str:D() :$filename!, :$!width!, :$!height!) is hidden-from-backtrace {
+        my $s = cairo_pdf_surface_t::create($filename, $!width, $!height);
+        self.set-surface: $s;
     }
-    multi method create(Str(Cool) $filename, Num(Cool) $width, Num(Cool) $height) {
-        return self.new(
-            surface => cairo_pdf_surface_create($filename, $width, $height),
-            :$width, :$height,
-            )
+
+    method create(Str:D() $filename, Str:D() $width, Str:D() $height) {
+        return self.new( :$filename, :$width, :$height );
     }
 
     method add_outline(Int :$parent-id, Str:D :$name = '', :$flags = 0, *%attrs) {
         $.surface.add_outline: $parent-id, $name, Attrs::serialize(%attrs), $flags;
     }
 
-    method surface handles<set_metadata> { callsame() }
+    method surface returns cairo_pdf_surface_t handles<set_metadata> { callsame() }
 }
 
 class Surface::SVG is Surface {
-    sub cairo_svg_surface_create(str $filename, num64 $width, num64 $height)
-        returns cairo_surface_t
-        is native($cairolib)
-        {*}
+    has Num:D() $.width is required;
+    has Num:D() $.height is required;
 
-    has Num $.width;
-    has Num $.height;
+    submethod BUILD(Str:D() :$filename!, :$!width!, :$!height!) is hidden-from-backtrace {
+        self.set-surface: cairo_svg_surface_t::create $filename, $!width, $!height;
+    }
 
-    multi method create(str $filename, num64 $width, num64 $height) {
-        return self.new(
-            surface => cairo_svg_surface_create($filename, $width, $height),
-            :$width, :$height,
-            )
+    method create(Str:D() $filename, Int:D() $width, Int:D() $height) {
+        return self.new(:$filename, :$width, :$height);
     }
-    multi method create(Str(Cool) $filename, Num(Cool) $width, Num(Cool) $height) {
-        return self.new(
-            surface => cairo_svg_surface_create($filename, $width, $height),
-            :$width, :$height,
-            )
-    }
+
+    method surface returns cairo_svg_surface_t { callsame }
+
 }
 
 class RecordingSurface {
@@ -1364,6 +1372,14 @@ class Image is Surface {
         returns int32
         is native($cairolib)
         {*}
+
+    multi submethod BUILD(cairo_surface_t:D :$surface) is hidden-from-backtrace { self.set-surface: $surface}
+    multi submethod BUILD(Str:D :$filename!) is hidden-from-backtrace {
+        self.set-surface: cairo_image_surface_create_from_png($filename)
+    }
+    multi submethod BUILD(Int:D() :$width!, Int:D() :$height!, Int:D() :$format = Cairo::FORMAT_ARGB32) is hidden-from-backtrace {
+        self.set-surface: cairo_image_surface_create($format, $width, $height);
+    }
 
     multi method create(Int() $format, Cool $width, Cool $height) {
         return self.new(surface => cairo_image_surface_create($format.Int, $width.Int, $height.Int));
