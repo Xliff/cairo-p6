@@ -11,7 +11,8 @@ BEGIN {
 
 use NativeCall;
 
-our enum cairo_status_t is export <
+constant cairo_status_t is export := uint32;
+our enum cairo_status is export <
     CAIRO_STATUS_SUCCESS
 
     CAIRO_STATUS_NO_MEMORY
@@ -132,6 +133,13 @@ our enum cairo_pdf_metadata_t is export <
     CAIRO_PDF_METADATA_CREATOR
     CAIRO_PDF_METADATA_CREATE_DATE
     CAIRO_PDF_METADATA_MOD_DATE
+>;
+
+constant cairo_region_overlap_t is export := uint32;
+our enum cairo_region_overlap is export <
+    CAIRO_REGION_OVERLAP_IN
+    CAIRO_REGION_OVERLAP_OUT
+    CAIRO_REGION_OVERLAP_PART
 >;
 
 sub cairo_version_string
@@ -990,6 +998,152 @@ our class cairo_t is repr('CPointer') {
 
 }
 
+class cairo_region_t is repr<CPointer> {
+
+  method copy
+      returns cairo_region_t
+      is native($cairolib)
+      is symbol('cairo_region_copy')
+      {*}
+
+  method reference
+      returns cairo_region_t
+      is native($cairolib)
+      is symbol('cairo_region_reference')
+      {*}
+
+  method destroy
+      is native($cairolib)
+      is symbol('cairo_region_destroy')
+      {*}
+
+  method equal (cairo_region_t $b)
+      returns int32 # cairo_bool_t
+      is native($cairolib)
+      is symbol('cairo_region_equal')
+      {*}
+
+  method status
+      returns cairo_status_t
+      is native($cairolib)
+      is symbol('cairo_region_status')
+      {*}
+
+  method get_extents (cairo_rectangle_int_t $extents)
+      is native($cairolib)
+      is symbol('cairo_region_get_extents')
+      {*}
+
+  method num_rectangles
+      returns int32
+      is native($cairolib)
+      is symbol('cairo_region_num_rectangles')
+      {*}
+
+  method get_rectangle (int32 $nth, cairo_rectangle_int_t $rectangle)
+      is native($cairolib)
+      is symbol('cairo_region_get_rectangle')
+      {*}
+
+  method is_empty
+      returns int32 # cairo_bool_t
+      is native($cairolib)
+      is symbol('cairo_region_is_empty')
+      {*}
+
+  method contains_rectangle (cairo_rectangle_int_t $rectangle)
+      returns cairo_region_overlap_t
+      is native($cairolib)
+      is symbol('cairo_region_contains_rectangle')
+      {*}
+
+  method contains_point (int32 $x, int32 $y)
+      returns int32 # cairo_bool_t
+      is native($cairolib)
+      is symbol('cairo_region_contains_point')
+      {*}
+
+  method translate (int32 $dx, int32 $dy)
+      is native($cairolib)
+      is symbol('cairo_region_translate')
+      {*}
+
+  method subtract (cairo_region_t $other)
+      returns cairo_status_t
+      is native($cairolib)
+      is symbol('cairo_region_subtract')
+      {*}
+
+  method subtract_rectangle (cairo_rectangle_int_t $rectangle)
+      returns cairo_status_t
+      is native($cairolib)
+      is symbol('cairo_region_subtract_rectangle')
+      {*}
+
+  method intersect (cairo_region_t $other)
+      returns cairo_status_t
+      is native($cairolib)
+      is symbol('cairo_region_intersect')
+      {*}
+
+  method intersect_rectangle (cairo_rectangle_int_t $rectangle)
+      returns cairo_status_t
+      is native($cairolib)
+      is symbol('cairo_region_intersect_rectangle')
+      {*}
+
+  method union (cairo_region_t $other)
+      returns cairo_status_t
+      is native($cairolib)
+      is symbol('cairo_region_union')
+      {*}
+
+  method union_rectangle (cairo_rectangle_int_t $rectangle)
+      returns cairo_status_t
+      is native($cairolib)
+      is symbol('cairo_region_union_rectangle')
+      {*}
+
+  method xor (cairo_region_t $other)
+      returns cairo_status_t
+      is native($cairolib)
+      is symbol('cairo_region_xor')
+      {*}
+
+  method xor_rectangle (cairo_rectangle_int_t $rectangle)
+      returns cairo_status_t
+      is native($cairolib)
+      is symbol('cairo_region_xor_rectangle')
+      {*}
+
+}
+
+class Region {
+  has cairo_region_t $!region is built;
+
+  sub create
+      returns cairo_region_t
+      is native($cairolib)
+      is symbol('cairo_region_create')
+      {*}
+
+  sub create_rectangle (cairo_rectangle_int_t $rectangle)
+      returns cairo_region_t
+      is native($cairolib)
+      is symbol('cairo_region_create_rectangle')
+      {*}
+
+  # cw: $rects is an array of cairo_rectangle_int_t
+  sub create_rectangles (Pointer $rects, int32 $count)
+      returns cairo_region_t
+      is native($cairolib)
+      is symbol('cairo_region_create_rectangles')
+      {*}
+
+  # cw: TODO
+  # ...
+}
+
 # Backwards compatibility
 our enum cairo_subpixel_order_t is export <
     CAIRO_SUBPIXEL_ORDER_DEFAULT,
@@ -1076,7 +1230,8 @@ our enum Format is export (
 );
 
 # Backwards compatibility
-our enum cairo_operator_t is export <
+constant cairo_operator_t is export := uint32;
+our enum cairo_operator is export <
   CAIRO_OPERATOR_CLEAR
   CAIRO_OPERATOR_SOURCE
   CAIRO_OPERATOR_OVER
@@ -1144,6 +1299,7 @@ our enum CairoOperator is export <
     OPERATOR_HSL_LUMINOSITY
 >;
 
+constant cairo_line_cap_t is export := uint32;
 our enum cairo_line_cap is export <
   CAIRO_LINE_CAP_BUTT
   CAIRO_LINE_CAP_ROUND
@@ -1156,6 +1312,7 @@ our enum LineCap is export <
     LINE_CAP_SQUARE
 >;
 
+constant cairo_line_join_t is export := uint32;
 our enum cairo_line_join is export <
     CAIRO_LINE_JOIN_MITER
     CAIRO_LINE_JOIN_ROUND
@@ -1202,6 +1359,11 @@ our enum Extend is export <
     CAIRO_EXTEND_PAD
 >;
 
+constant cairo_fill_rule_t is export := uint32;
+our enum cairo_fill_rule is export <
+  CAIRO_FILL_RULE_WINDING
+  CAIRO_FILL_RULE_EVEN_ODD
+>;
 our enum FillRule is export <
     FILL_RULE_WINDING
     FILL_RULE_EVEN_ODD
@@ -1256,6 +1418,8 @@ class Matrix {
 class Surface {
     has cairo_surface_t $.surface handles <reference destroy flush finish show_page status>;
     method set-surface($!surface) {}
+
+    method Cairo::cairo_surface_t { $!surface }
 
     method write_png(Str $filename) {
         my $result = CairoStatus( $.surface.write_to_png($filename) );
@@ -1461,7 +1625,8 @@ class Pattern {
     method Cairo::cairo_pattern_t { $!pattern }
 
     multi method new(cairo_pattern_t $pattern) {
-        self.bless(:$pattern)
+        return unless $pattern;
+        self.bless(:$pattern);
     }
 
     method extend() is rw {
@@ -1720,10 +1885,10 @@ class Context {
         $!context.line_to($x, $y);
     }
 
-    multi method move_to(Num(Cool) $x, Num(Cool) $y, :$relative! where .so) {
+    multi method move_to(Num(Cool) $x, Num(Cool) $y, :rel(:$relative)! where .so) {
         $!context.rel_move_to($x, $y);
     }
-    multi method line_to(Num(Cool) $x, Num(Cool) $y, :$relative! where .so) {
+    multi method line_to(Num(Cool) $x, Num(Cool) $y, :rel(:$relative)! where .so) {
         $!context.rel_line_to($x, $y);
     }
 
@@ -1739,7 +1904,7 @@ class Context {
 
     multi method curve_to(Num(Cool) $x1, Num(Cool) $y1, Num(Cool) $x2, Num(Cool) $y2, Num(Cool) $x3, Num(Cool) $y3) {
         $!context.curve_to($x1, $y1, $x2, $y2, $x3, $y3);
-    }
+   }
     multi method curve_to(Num(Cool) $x1, Num(Cool) $y1, Num(Cool) $x2, Num(Cool) $y2, Num(Cool) $x3, Num(Cool) $y3, :$relative! where .so) {
         $!context.rel_curve_to($x1, $y1, $x2, $y2, $x3, $y3);
     }
@@ -2137,9 +2302,13 @@ class FontOptions {
 
 class Glyphs {
     has UInt:D $.elems is required;
-    has cairo_glyph_t $!glyphs; # a contiguous array of $!elems glyphs
+    has cairo_glyph_t $!glyphs is built; # a contiguous array of $!elems glyphs
     has Numeric ($.x-advance, $.y-advance) is rw;
     constant RecSize = nativesizeof(cairo_glyph_t);
+
+    method new (cairo_glyph_t $glyphs, $elems) {
+	self.bless( :$glyphs, :$elems );
+    }
     submethod TWEAK {
         $!glyphs = cairo_glyph_t.allocate($!elems);
     }
